@@ -28,6 +28,8 @@ class Net:
         #     ciphertext for eve
 
         in_tensor = tf.expand_dims(in_tensor, 1)
+        if self.name == 'eve':
+            in_tensor = tf.concat(0, [in_tensor, tf.constant(0., shape=in_tensor.get_shape())])
         return tf.nn.sigmoid(tf.matmul(self.fc_weights, in_tensor))
 
     def conv_layer(self, in_tensor):
@@ -54,7 +56,9 @@ class Net:
 
         # now round to 0's and 1's
         # warning: was getting -0.'s instead of 0's. prob ok but...
-        out_tensor = tf.ceil(out_tensor)
+        
+        # Note: Can't use ceil during training, actually, because it doesn't have a defined gradient so SGD breaks
+        #out_tensor = tf.ceil(out_tensor)
 
         return out_tensor
     
@@ -63,6 +67,7 @@ class Net:
         
         # This should be the L1-Loss of the original plaintext and what Eve decrypted
         eveLoss_L1 = tf.reduce_sum(tf.abs(plaintext - eve_output))
+        #eveLoss_L1 = tf.reduce_mean(tf.abs(plaintext - eve_output))
         
         # Then, perform the modification Abadi & Andersen describe in section 2.5 of (N/2 - Eve_L1)^2 / (N/2)^2
         # This should cause the network to drive Eve towards a 50% bit error rate
@@ -72,20 +77,21 @@ class Net:
         if self.name == 'alice' or self.name == 'bob':
             # Alice and Bob's loss is the L1-loss of [originalPlaintext, key] and what Bob recovered minus eveLoss
             aliceBobLoss = tf.reduce_sum(tf.abs(bob_output - plaintext)) - eveLoss
+            #aliceBobLoss = tf.reduce_mean(tf.abs(bob_output - plaintext)) - eveLoss
             return aliceBobLoss
         else:
             return eveLoss
 
 def generateData(plaintext_len=4):
-    return np.random.randint(0, 2, size=plaintext_len)
+    return np.random.randint(0, 2, size=int(plaintext_len))
 
-class Trio(N):
-    def __init__(self):
+class Trio():
+    def __init__(self, in_length, conv_params):
         self.this = None
-        self.nets = [Net(name) for name in ['alice', 'bob', 'eve']]
+        self.nets = [Net(name, in_length, conv_params) for name in ['alice', 'bob', 'eve']]
         self.learning_rate = 0.0008
 
-        self.plaintext_len = 4
+        self.plaintext_len = in_length/2
 
     def train(self, iterations=100000):
         # define a training function
@@ -117,6 +123,7 @@ class Trio(N):
         sess = tf.Session()
         bobLossArr = np.zeros([iterations])
         eveLossArr = np.zeros([iterations])
+        tf.initialize_all_variables().run(session=sess)
         for i in range(iterations):
             msg_training = generateData(plaintext_len=self.plaintext_len)
             key_training = generateData(plaintext_len=self.plaintext_len)
@@ -128,5 +135,5 @@ class Trio(N):
             _, eveLossArr[i] = sess.run([eOpt, loss_eve], feed_dict={plaintext:msg_training, key:key_training})
             
             if i % 1000 == 0:
-                print("bob loss: " + bobLossArr[i])
-                print("eve loss: " + eveLossArr[i])
+                print("bob loss: " + str(bobLossArr[i]))
+                print("eve loss: " + str(eveLossArr[i]))
