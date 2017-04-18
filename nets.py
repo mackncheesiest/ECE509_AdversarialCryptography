@@ -1,5 +1,5 @@
 import tensorflow as tf
-
+import numpy as np
 
 class Net:
     def __init__(self, name, in_length, conv_params):
@@ -57,11 +57,76 @@ class Net:
         out_tensor = tf.ceil(out_tensor)
 
         return out_tensor
+    
+    def loss_func(self, name, plaintext, eve_output, bob_output):
+        # All networks need to use Eve's loss function as a building block
+        
+        # This should be the L1-Loss of the original plaintext and what Eve decrypted
+        eveLoss_L1 = tf.reduce_sum(tf.abs(plaintext - eve_output))
+        
+        # Then, perform the modification Abadi & Andersen describe in section 2.5 of (N/2 - Eve_L1)^2 / (N/2)^2
+        # This should cause the network to drive Eve towards a 50% bit error rate
+        eveLoss = ((plaintext.get_shape().as_list()[0]/2 - eveLoss_L1) ** 2) / ((plaintext.get_shape().as_list()[0]/2) ** 2)
+        
+        # Alice & Bob use the same loss function
+        if self.name == 'alice' or self.name == 'bob':
+            # Alice and Bob's loss is the L1-loss of [originalPlaintext, key] and what Bob recovered minus eveLoss
+            aliceBobLoss = tf.reduce_sum(tf.abs(bob_output - plaintext)) - eveLoss
+            return aliceBobLoss
+        else:
+            return eveLoss
+
+def generateData(plaintext_len=4):
+    return np.random.randint(0, 2, size=plaintext_len)
 
 class Trio(N):
     def __init__(self):
         self.this = None
-    self.nets = [Net(name) for name in ['alice', 'bob', 'eve']]
+        self.nets = [Net(name) for name in ['alice', 'bob', 'eve']]
+        self.learning_rate = 0.0008
 
-    def train(self):
+        self.plaintext_len = 4
+
+    def train(self, iterations=100000):
         # define a training function
+        
+        plaintext = tf.placeholder('float', [self.plaintext_len])
+        key = tf.placeholder('float', [self.plaintext_len])
+        
+        tensor_in = tf.concat(0, [plaintext, key])
+        
+        alice_output = self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))
+        bob_output = self.nets[1].conv_layer(self.nets[1].fc_layer(tf.concat(0, [alice_output, key])))
+        eve_output = self.nets[2].conv_layer(self.nets[2].fc_layer(alice_output))
+        
+        loss_bob = self.nets[1].loss_func('bob', plaintext, eve_output, bob_output)
+        loss_eve = self.nets[2].loss_func('eve', plaintext, eve_output, bob_output)
+        
+        # Stolen from https://github.com/ankeshanand/neural-cryptography-tensorflow/blob/master/src/model.py#L79
+        t_vars = tf.trainable_variables()
+        # When training alice/bob, we only want to update their variables
+        alice_bob_vars = [var for var in t_vars if 'alice' in var.name or 'bob' in var.name]        
+        # And when training eve, we only want to update her variables
+        eve_vars = [var for var in t_vars if 'eve' in var.name]
+        
+        # Optimizers used for training
+        abOpt = tf.train.AdamOptimizer(learning_rate=self.learning_rate, name='a_b_optimizer').minimize(loss_bob, var_list=alice_bob_vars)
+        eOpt = tf.train.AdamOptimizer(learning_rate=self.learning_rate, name='e_optimizer').minimize(loss_eve, var_list=eve_vars)
+        
+        # Begin the training loop
+        sess = tf.Session()
+        bobLossArr = np.zeros([iterations])
+        eveLossArr = np.zeros([iterations])
+        for i in range(iterations):
+            msg_training = generateData(plaintext_len=self.plaintext_len)
+            key_training = generateData(plaintext_len=self.plaintext_len)
+            # First, run alice and bob           
+            _, bobLossArr[i] = sess.run([abOpt, loss_bob], feed_dict={plaintext:msg_training, key:key_training})
+            # Then, run eve
+            msg_training = generateData(plaintext_len=self.plaintext_len)
+            key_training = generateData(plaintext_len=self.plaintext_len)
+            _, eveLossArr[i] = sess.run([eOpt, loss_eve], feed_dict={plaintext:msg_training, key:key_training})
+            
+            if i % 1000 == 0:
+                print("bob loss: " + bobLossArr[i])
+                print("eve loss: " + eveLossArr[i])
