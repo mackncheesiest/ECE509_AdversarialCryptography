@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import matplotlib.pyplot as plt
 
 class Net:
     def __init__(self, name, in_length, conv_params):
@@ -100,7 +101,7 @@ class Trio():
 
         self.plaintext_len = in_length/2
 
-    def train(self, iterations=100000):
+    def train(self, iterations=50000):
         # define a training function
         
         plaintext = tf.placeholder('float', [self.plaintext_len])
@@ -133,6 +134,8 @@ class Trio():
         sess = tf.Session()
         bobLossArr = np.zeros([iterations])
         eveLossArr = np.zeros([iterations])
+        bobMeansVect = np.zeros([iterations/1000])
+        eveMeansVect = np.zeros([iterations/1000])
         tf.initialize_all_variables().run(session=sess)
         for i in range(iterations):
             msg_training = generateData(plaintext_len=self.plaintext_len)
@@ -144,6 +147,15 @@ class Trio():
             key_training = generateData(plaintext_len=self.plaintext_len)
             _, eveLossArr[i] = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
             
-            if i % 1000 == 0:
-                print("bob loss: " + str(bobLossArr[i]))
-                print("eve loss: " + str(eveLossArr[i]))
+            if i % 1000 == 0 and i > 0:
+                bobMeansVect[i/1000] = np.mean(bobLossArr[(i-1000):i])
+                eveMeansVect[i/1000] = np.mean(eveLossArr[(i-1000):i])
+                print("iteration # " + str(i))
+                print("bob loss: " + str(np.mean(bobLossArr[(i-1000):i])))
+                print("eve loss: " + str(np.mean(eveLossArr[(i-1000):i])))
+                
+        
+        plt.plot(bobMeansVect)
+        plt.show()
+        plt.plot(eveMeansVect)
+        plt.show()

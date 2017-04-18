@@ -3,7 +3,7 @@ import nets
 
 
 def main():
-    in_length = 8  # mesage of length 4, so expect output of length 4
+    in_length = 16  # mesage of length 4, so expect output of length 4
     conv_params = [
         [[4, 1, 2], 1], 
         [[2, 2, 4], 2], 
