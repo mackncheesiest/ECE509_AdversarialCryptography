@@ -6,6 +6,12 @@ class Net:
         self.name = name  # a string
         self.conv_params = conv_params  # format: [filter_shape, stride]
         self.in_length = in_length
+        
+        if name == 'eve':
+            self.eve_expand_fc_weights = tf.get_variable(
+                name=name + '_expand_fc_weights', shape=[in_length, in_length/2],
+                initializer=tf.contrib.layers.xavier_initializer()
+            )
         self.fc_weights = tf.get_variable(
             name=self.name + '_fc_weights', shape=[in_length, in_length],
             initializer=tf.contrib.layers.xavier_initializer()
@@ -29,7 +35,8 @@ class Net:
 
         in_tensor = tf.expand_dims(in_tensor, 1)
         if self.name == 'eve':
-            in_tensor = tf.concat(0, [in_tensor, tf.constant(0., shape=in_tensor.get_shape())])
+            expandFC = tf.nn.sigmoid(tf.matmul(self.eve_expand_fc_weights, in_tensor))
+            return tf.nn.sigmoid(tf.matmul(self.fc_weights, expandFC))
         return tf.nn.sigmoid(tf.matmul(self.fc_weights, in_tensor))
 
     def conv_layer(self, in_tensor):
@@ -108,6 +115,9 @@ class Trio():
         loss_bob = self.nets[1].loss_func('bob', plaintext, eve_output, bob_output)
         loss_eve = self.nets[2].loss_func('eve', plaintext, eve_output, bob_output)
         
+        bitErrors_bob = tf.reduce_sum(tf.abs(bob_output - plaintext))
+        bitErrors_eve = tf.reduce_sum(tf.abs(eve_output - plaintext))
+        
         # Stolen from https://github.com/ankeshanand/neural-cryptography-tensorflow/blob/master/src/model.py#L79
         t_vars = tf.trainable_variables()
         # When training alice/bob, we only want to update their variables
@@ -128,11 +138,11 @@ class Trio():
             msg_training = generateData(plaintext_len=self.plaintext_len)
             key_training = generateData(plaintext_len=self.plaintext_len)
             # First, run alice and bob           
-            _, bobLossArr[i] = sess.run([abOpt, loss_bob], feed_dict={plaintext:msg_training, key:key_training})
+            _, bobLossArr[i] = sess.run([abOpt, bitErrors_bob], feed_dict={plaintext:msg_training, key:key_training})
             # Then, run eve
             msg_training = generateData(plaintext_len=self.plaintext_len)
             key_training = generateData(plaintext_len=self.plaintext_len)
-            _, eveLossArr[i] = sess.run([eOpt, loss_eve], feed_dict={plaintext:msg_training, key:key_training})
+            _, eveLossArr[i] = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
             
             if i % 1000 == 0:
                 print("bob loss: " + str(bobLossArr[i]))
