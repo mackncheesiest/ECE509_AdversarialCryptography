@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
 
 class Net:
     def __init__(self, name, in_length, conv_params):
@@ -10,7 +9,7 @@ class Net:
         
         if name == 'eve':
             self.eve_expand_fc_weights = tf.get_variable(
-                name=name + '_expand_fc_weights', shape=[in_length, in_length/2],
+                name=name + '_expand_fc_weights', shape=[in_length, in_length//2],
                 initializer=tf.contrib.layers.xavier_initializer()
             )
         self.fc_weights = tf.get_variable(
@@ -99,9 +98,9 @@ class Trio():
         self.nets = [Net(name, in_length, conv_params) for name in ['alice', 'bob', 'eve']]
         self.learning_rate = 0.0008
 
-        self.plaintext_len = in_length/2
+        self.plaintext_len = in_length//2
 
-    def train(self, iterations=50000):
+    def train(self, sess, iterations=50000):
         # define a training function
         
         plaintext = tf.placeholder('float', [self.plaintext_len])
@@ -131,12 +130,12 @@ class Trio():
         eOpt = tf.train.AdamOptimizer(learning_rate=self.learning_rate, name='e_optimizer').minimize(loss_eve, var_list=eve_vars)
         
         # Begin the training loop
-        sess = tf.Session()
-        bobLossArr = np.zeros([iterations])
-        eveLossArr = np.zeros([iterations])
-        bobMeansVect = np.zeros([iterations/1000])
-        eveMeansVect = np.zeros([iterations/1000])
-        tf.initialize_all_variables().run(session=sess)
+        bobLossArr = np.zeros([int(iterations)])
+        eveLossArr = np.zeros([int(iterations)])
+        bobMeansVect = np.zeros([int(iterations/1000)])
+        eveMeansVect = np.zeros([int(iterations/1000)])
+        #tf.initialize_all_variables().run(session=sess)
+        tf.global_variables_initializer().run(session=sess)
         for i in range(iterations):
             msg_training = generateData(plaintext_len=self.plaintext_len)
             key_training = generateData(plaintext_len=self.plaintext_len)
@@ -148,14 +147,35 @@ class Trio():
             _, eveLossArr[i] = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
             
             if i % 1000 == 0 and i > 0:
-                bobMeansVect[i/1000] = np.mean(bobLossArr[(i-1000):i])
-                eveMeansVect[i/1000] = np.mean(eveLossArr[(i-1000):i])
-                print("iteration # " + str(i))
+                bobMeansVect[int(i/1000)] = np.mean(bobLossArr[(i-1000):i])
+                eveMeansVect[int(i/1000)] = np.mean(eveLossArr[(i-1000):i])
+                print(str(int(i/iterations * 100)) + "% done (" + str(i) + " out of " + str(iterations) + " iterations")
                 print("bob loss: " + str(np.mean(bobLossArr[(i-1000):i])))
                 print("eve loss: " + str(np.mean(eveLossArr[(i-1000):i])))
                 
+        return bobMeansVect, eveMeansVect
+    
+    def encryptPlaintext(self, sess, plaintext, key):
+        #if len(plaintext) != self.plaintext_len or len(key) != self.plaintext_len:
+        #    print("Error: plaintext or key sized incorrectly; network is trained for " + str(self.plaintext_len) + " bits each")
+        #    return plaintext
         
-        plt.plot(bobMeansVect)
-        plt.show()
-        plt.plot(eveMeansVect)
-        plt.show()
+        tensor_in = tf.concat(0, [plaintext, key])
+        #print("tensor_in is of size " + str(tensor_in.get_shape().as_list()[0]))
+        return sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))])
+    
+    def decryptBob(self, sess, ciphertext, key):
+        #if len(ciphertext) != self.plaintext_len or len(key) != self.plaintext_len:
+        #    print("Error: plaintext or key sized incorrectly; network is trained for " + str(self.plaintext_len) + " bits each")
+        #    return ciphertext
+        
+        tensor_in = tf.concat(0, [ciphertext, key])
+        #print("tensor_in is of size " + str(tensor_in.get_shape().as_list()[0]))
+        return sess.run([self.nets[1].conv_layer(self.nets[1].fc_layer(tensor_in))])
+    
+    def decryptEve(self, sess, ciphertext):
+        if len(ciphertext) != self.plaintext_len:
+            print("Error: plaintext sized incorrectly; network is trained for " + str(self.plaintext_len) + " bits")
+            return ciphertext
+        
+        return sess.run([self.nets[2].conv_layer(self.nets[1].fc_layer(ciphertext))])
