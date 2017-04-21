@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    in_length = 40  # mesage of length 32, so expect output of length 32
+    in_length = 40  # mesage of length 20, so expect output of length 20
     conv_params = [
         [[4, 1, 2], 1], 
         [[2, 2, 4], 2], 
@@ -16,7 +16,7 @@ def main():
     
     myTrio = Trio(in_length, conv_params)
     
-    [bobAvgErrVect, eveAvgErrVect] = myTrio.train(sess, iterations=200000, learning_rate=0.00004)
+    [bobAvgErrVect, eveAvgErrVect] = myTrio.train(sess, epochs=100000, learning_rate=0.0016, batch_size=512)
     
     plt.plot(bobAvgErrVect)
     plt.title('Average Bit Error Across 1000 iterations/epoch for Bob')
@@ -28,16 +28,13 @@ def main():
     plaintext = 'hello my name is josh.aa'
     
     #Pick a key
-    key = generateData(plaintext_len=in_length//2)
-    key = [float(i) for i in key]
+    key = generateData(plaintext_len=in_length//2, batch_size=1)
+    #key = [float(i) for i in key[0, :]]
     
+    print(plaintext)
     encryptedData = myTrio.encryptPlaintext(sess, plaintext, key, output_bits_or_chars='chars')
-    decryptedData = myTrio.decryptBob(sess, encryptedData, key, output_bits_or_chars='chars')
-
-    print('plaintext: ' + plaintext)   
-    #print('plaintext bits: ' + )
-    
     print(encryptedData)
+    decryptedData = myTrio.decryptBob(sess, encryptedData, key, output_bits_or_chars='chars')
     print(decryptedData)    
 
 
