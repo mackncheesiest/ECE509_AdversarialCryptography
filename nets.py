@@ -35,20 +35,15 @@ class Net:
         #     ciphertext for eve
 
         #in_tensor = tf.expand_dims(in_tensor, 1)[:]
-        #print('fc in_tensor: ' + str(in_tensor.get_shape()))
         if self.name == 'eve':
             expandFC = tf.nn.sigmoid(tf.matmul(in_tensor, self.eve_expand_fc_weights))
-            #print('fc expandFC: ' + str(expandFC.get_shape()))
             return tf.nn.sigmoid(tf.matmul(expandFC, self.fc_weights))
-        #print('fc out_tensor: ' + str(tf.nn.sigmoid(tf.matmul(in_tensor, self.fc_weights)).get_shape()))
         return tf.nn.sigmoid(tf.matmul(in_tensor, self.fc_weights))
 
     def conv_layer(self, in_tensor):
         # input: a tensor of shape [in_length, 1]
         # conv1d needs two 3-dimensional tensors as as input
-        #print('conv in_tensor: ' + str(in_tensor.get_shape()))
         out_tensor = tf.expand_dims(in_tensor, 2)
-        #print('conv in_tensor_expand: ' + str(in_tensor.get_shape()))
         # out_tensor = in_tensor
 
         # for all but the last layers we use relu
@@ -66,10 +61,8 @@ class Net:
            tf.nn.conv1d(out_tensor, self.conv_weights[-1], stride, padding='SAME')
         )  # if problems later, maybe I should have used placeholders?
 
-        #print('conv out_tensor: ' + str(out_tensor.get_shape()))
         out_tensor = tf.squeeze(out_tensor)
         
-        #print('conv out_tensor_squeeze: ' + str(out_tensor.get_shape()))
         # now round to 0's and 1's
         # warning: was getting -0.'s instead of 0's. prob ok but...
         
@@ -82,18 +75,16 @@ class Net:
         # All networks need to use Eve's loss function as a building block
         
         # This should be the L1-Loss of the original plaintext and what Eve decrypted
-        eveLoss_L1 = tf.reduce_mean(tf.abs(plaintext - eve_output))#, reduction_indices=1)
+        eveLoss_L1 = tf.reduce_sum(tf.abs(plaintext - eve_output), reduction_indices=1)
         #eveLoss_L1 = tf.reduce_mean(tf.abs(plaintext - eve_output))
         
         # Then, perform the modification Abadi & Andersen describe in section 2.5 of (N/2 - Eve_L1)^2 / (N/2)^2
         # This should cause the network to drive Eve towards a 50% bit error rate
         eveLoss = ((plaintext.get_shape().as_list()[1]/2 - eveLoss_L1) ** 2) / ((plaintext.get_shape().as_list()[1]/2) ** 2)
-        
         # Alice & Bob use the same loss function
         if self.name == 'alice' or self.name == 'bob':
             # Alice and Bob's loss is the L1-loss of [originalPlaintext, key] and what Bob recovered minus eveLoss
-            aliceBobLoss = tf.reduce_mean(tf.abs(bob_output - plaintext)) + eveLoss#, reduction_indices=1) + eveLoss
-            #aliceBobLoss = tf.reduce_mean(tf.abs(bob_output - plaintext)) - eveLoss
+            aliceBobLoss = tf.reduce_sum(tf.abs(bob_output - plaintext) , reduction_indices=1) - eveLoss
             return aliceBobLoss
         else:
             return eveLoss
@@ -113,10 +104,10 @@ class Trio():
         plaintext = tf.placeholder('float', [None, self.plaintext_len])
         key = tf.placeholder('float', [None, self.plaintext_len])
         
-        tensor_in = tf.concat(1, [plaintext, key])
+        tensor_in = tf.concat(axis=1, values=[plaintext, key])
         
         alice_output = self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))
-        bob_output = self.nets[1].conv_layer(self.nets[1].fc_layer(tf.concat(1, [alice_output, key])))
+        bob_output = self.nets[1].conv_layer(self.nets[1].fc_layer(tf.concat(axis=1, values=[alice_output, key])))
         eve_output = self.nets[2].conv_layer(self.nets[2].fc_layer(alice_output))
         
         loss_bob = self.nets[1].loss_func('bob', plaintext, eve_output, bob_output)
@@ -156,6 +147,9 @@ class Trio():
             key_training = generateData(plaintext_len=self.plaintext_len, batch_size=batch_size)
             _, eveLossTemp = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
             
+            #print(str(bobLossTemp.shape))
+            #print(str(eveLossTemp.shape))
+            
             #msg_training = generateData(plaintext_len=self.plaintext_len, batch_size=batch_size)
             #key_training = generateData(plaintext_len=self.plaintext_len, batch_size=batch_size)
             #_, eveLossTemp = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
@@ -175,11 +169,6 @@ class Trio():
                 #print(self.decryptEve(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), output_bits_or_chars='chars'))
                 print("bob average loss: " + str(bobMeansVect[i//report_rate]))
                 print("eve average loss: " + str(eveMeansVect[i//report_rate]))
-            #print(str(int(i/epochs * 100)) + "% done (" + str(i) + " out of " + str(epochs) + " epochs")
-            #print("bob average loss: " + str(np.mean(bobLossArr[(i-1000):i])/batch_size))
-            #print("eve average loss: " + str(np.mean(eveLossArr[(i-1000):i])/batch_size))
-            #print("bob loss this iteration: " + str(bobLossArr[i]/batch_size))
-            #print("eve loss this iteration: " + str(eveLossArr[i]/batch_size))
                 
         return bobMeansVect, eveMeansVect
     
@@ -209,8 +198,8 @@ class Trio():
         for i in range(0, len(plaintextBin), self.plaintext_len):
             # Concatenate the message with the key
             tensor_in = np.reshape(np.array(plaintextBin[i:(i+self.plaintext_len)]), [1, self.plaintext_len])
-            #tensor_in = tf.concat(0, [tf.constant(1., shape=[1]), plaintextBin[i:(i+self.plaintext_len)]])
-            tensor_in = tf.concat(1, [tensor_in, key])
+            #tensor_in = tf.concat(axis=0, [tf.constant(1., shape=[1]), plaintextBin[i:(i+self.plaintext_len)]])
+            tensor_in = tf.concat(axis=1, values=[tensor_in, key])
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))])[0]
             # Compress it back to a sequence of characters, decode them, and append to the result
@@ -242,8 +231,8 @@ class Trio():
         for i in range(0, len(ciphertextBin), self.plaintext_len):
             # Concatenate the ciphertext with the key
             tensor_in = np.reshape(np.array(ciphertextBin[i:(i+self.plaintext_len)]), [1, self.plaintext_len])
-            #tensor_in = tf.concat(0, [tf.constant(1., shape=[1]), ciphertextBin[i:(i+self.plaintext_len)]])
-            tensor_in = tf.concat(1, [tensor_in, key])
+            #tensor_in = tf.concat(axis=0, [tf.constant(1., shape=[1]), ciphertextBin[i:(i+self.plaintext_len)]])
+            tensor_in = tf.concat(axis=1, values=[tensor_in, key])
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[1].conv_layer(self.nets[1].fc_layer(tensor_in))])[0]
             # Compress it back to a sequence of characters, decode them, and append to the result
@@ -275,8 +264,8 @@ class Trio():
         for i in range(0, len(ciphertextBin), self.plaintext_len):
             # Concatenate the ciphertext with the key
             tensor_in = np.reshape(np.array(ciphertextBin[i:(i+self.plaintext_len)]), [1, self.plaintext_len])
-            #tensor_in = tf.concat(0, [tf.constant(1), ciphertextBin[i:(i+self.plaintext_len)]])
-            #tensor_in = tf.concat(1, [ciphertextBin[i:(i+self.plaintext_len)]])
+            #tensor_in = tf.concat(axis=0, values=[tf.constant(1), ciphertextBin[i:(i+self.plaintext_len)]])
+            #tensor_in = tf.concat(axis=1, values=[ciphertextBin[i:(i+self.plaintext_len)]])
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[2].conv_layer(self.nets[2].fc_layer(tensor_in))])[0]
             # Compress it back to a sequence of characters, decode them, and append to the result
