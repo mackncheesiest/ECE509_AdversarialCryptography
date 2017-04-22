@@ -3,7 +3,7 @@ import numpy as np
 from encoder import Encoder
 
 class Net:
-    def __init__(self, name, in_length, conv_params, seed=None):
+    def __init__(self, name, in_length, conv_params, seed=100):
         self.name = name  # a string
         self.conv_params = conv_params  # format: [filter_shape, stride]
         self.in_length = in_length
@@ -18,7 +18,7 @@ class Net:
             initializer=tf.contrib.layers.xavier_initializer(uniform=False, seed=seed)
         )  # do we want to include biases? others don't
         self.conv_weights = [tf.get_variable(
-            self.name + 'conv_weights'+str(conv_params.index(param)),
+            self.name + '_conv_weights'+str(conv_params.index(param)),
             shape=param[0], initializer=tf.contrib.layers.xavier_initializer(uniform=False, seed=seed)
         )
                              for param in self.conv_params]
@@ -82,7 +82,7 @@ class Net:
         # All networks need to use Eve's loss function as a building block
         
         # This should be the L1-Loss of the original plaintext and what Eve decrypted
-        eveLoss_L1 = tf.reduce_sum(tf.abs(plaintext - eve_output))
+        eveLoss_L1 = tf.reduce_mean(tf.abs(plaintext - eve_output))#, reduction_indices=1)
         #eveLoss_L1 = tf.reduce_mean(tf.abs(plaintext - eve_output))
         
         # Then, perform the modification Abadi & Andersen describe in section 2.5 of (N/2 - Eve_L1)^2 / (N/2)^2
@@ -92,7 +92,7 @@ class Net:
         # Alice & Bob use the same loss function
         if self.name == 'alice' or self.name == 'bob':
             # Alice and Bob's loss is the L1-loss of [originalPlaintext, key] and what Bob recovered minus eveLoss
-            aliceBobLoss = tf.reduce_sum(tf.abs(bob_output - plaintext)) - eveLoss
+            aliceBobLoss = tf.reduce_mean(tf.abs(bob_output - plaintext)) + eveLoss#, reduction_indices=1) + eveLoss
             #aliceBobLoss = tf.reduce_mean(tf.abs(bob_output - plaintext)) - eveLoss
             return aliceBobLoss
         else:
@@ -108,7 +108,7 @@ class Trio():
         self.plaintext_len = in_length//2
         self.myEnc = Encoder()
 
-    def train(self, sess, epochs=50000, learning_rate=0.0008, batch_size=512):
+    def train(self, sess, epochs=50000, learning_rate=0.0008, batch_size=512, report_rate=100):
         # define a training function
         plaintext = tf.placeholder('float', [None, self.plaintext_len])
         key = tf.placeholder('float', [None, self.plaintext_len])
@@ -124,8 +124,8 @@ class Trio():
         
         #bitErrors_bob = tf.reduce_sum(tf.abs(tf.round(bob_output) - tf.round(plaintext)))
         #bitErrors_eve = tf.reduce_sum(tf.abs(tf.round(eve_output) - tf.round(plaintext)))
-        bitErrors_bob = tf.reduce_sum(tf.abs((bob_output) - (plaintext)))
-        bitErrors_eve = tf.reduce_sum(tf.abs((eve_output) - (plaintext)))
+        bitErrors_bob = tf.reduce_sum(tf.abs((bob_output) - (plaintext)), reduction_indices=1)
+        bitErrors_eve = tf.reduce_sum(tf.abs((eve_output) - (plaintext)), reduction_indices=1)
         
         # Stolen from https://github.com/ankeshanand/neural-cryptography-tensorflow/blob/master/src/model.py#L79
         t_vars = tf.trainable_variables()
@@ -141,8 +141,8 @@ class Trio():
         # Begin the training loop
         #bobLossArr = np.zeros([int(epochs)])
         #eveLossArr = np.zeros([int(epochs)])
-        bobMeansVect = np.zeros([epochs//100])
-        eveMeansVect = np.zeros([epochs//100])
+        bobMeansVect = np.zeros([epochs//report_rate])
+        eveMeansVect = np.zeros([epochs//report_rate])
         #tf.initialize_all_variables().run(session=sess)
         tf.global_variables_initializer().run(session=sess)
         for i in range(epochs):
@@ -160,12 +160,21 @@ class Trio():
             #key_training = generateData(plaintext_len=self.plaintext_len, batch_size=batch_size)
             #_, eveLossTemp = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
             
-            if i % 100 == 0 and i > 0:
-                bobMeansVect[i//100] = bobLossTemp/batch_size
-                eveMeansVect[i//100] = eveLossTemp/batch_size
-                print("i: " + str(i))
-                print("bob average loss: " + str(bobMeansVect[i//100]))
-                print("eve average loss: " + str(eveMeansVect[i//100]))
+            if i % report_rate == 0 and i > 0:
+                bobMeansVect[i//report_rate] = np.mean(bobLossTemp)
+                eveMeansVect[i//report_rate] = np.mean(eveLossTemp)
+                print("i: " + str(i) + "/" + str(epochs) + " (" + str(i/epochs*100) + "%)")
+                testVect = "test"
+                print(testVect)
+                print("["+str([int(c) for c in self.myEnc.encode(testVect)])+"]")
+                testKey = generateData(plaintext_len=self.plaintext_len, batch_size=1)
+                print(self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'))
+                print(self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='bits'))
+                print(self.decryptBob(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), testKey, output_bits_or_chars='chars'))
+                print(self.decryptBob(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), testKey, output_bits_or_chars='bits'))
+                #print(self.decryptEve(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), output_bits_or_chars='chars'))
+                print("bob average loss: " + str(bobMeansVect[i//report_rate]))
+                print("eve average loss: " + str(eveMeansVect[i//report_rate]))
             #print(str(int(i/epochs * 100)) + "% done (" + str(i) + " out of " + str(epochs) + " epochs")
             #print("bob average loss: " + str(np.mean(bobLossArr[(i-1000):i])/batch_size))
             #print("eve average loss: " + str(np.mean(eveLossArr[(i-1000):i])/batch_size))
@@ -208,7 +217,7 @@ class Trio():
             if output_bits_or_chars == 'chars':
                 result += self.myEnc.decode("".join(str(int(round(abs(x)))) for x in tf_result))
             else:
-                result.append(tf_result)
+                result.append([int(round(abs(x))) for x in tf_result])
             
         return result
     
@@ -241,7 +250,7 @@ class Trio():
             if output_bits_or_chars == 'chars':
                 result += self.myEnc.decode("".join(str(int(round(abs(x)))) for x in tf_result))
             else:
-                result.append(tf_result)
+                result.append([int(round(abs(x))) for x in tf_result])
         
         return result
     
@@ -265,7 +274,8 @@ class Trio():
             
         for i in range(0, len(ciphertextBin), self.plaintext_len):
             # Concatenate the ciphertext with the key
-            tensor_in = tf.concat(0, [tf.constant(1), ciphertextBin[i:(i+self.plaintext_len)]])
+            tensor_in = np.reshape(np.array(ciphertextBin[i:(i+self.plaintext_len)]), [1, self.plaintext_len])
+            #tensor_in = tf.concat(0, [tf.constant(1), ciphertextBin[i:(i+self.plaintext_len)]])
             #tensor_in = tf.concat(1, [ciphertextBin[i:(i+self.plaintext_len)]])
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[2].conv_layer(self.nets[2].fc_layer(tensor_in))])[0]

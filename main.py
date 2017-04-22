@@ -16,7 +16,7 @@ def main():
     
     myTrio = Trio(in_length, conv_params)
     
-    [bobAvgErrVect, eveAvgErrVect] = myTrio.train(sess, epochs=100000, learning_rate=0.0016, batch_size=512)
+    [bobAvgErrVect, eveAvgErrVect] = myTrio.train(sess, epochs=100000, learning_rate=0.0008, batch_size=4096, report_rate=100)
     
     plt.plot(bobAvgErrVect)
     plt.title('Average Bit Error Across 1000 iterations/epoch for Bob')
