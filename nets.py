@@ -91,7 +91,7 @@ class Net:
             return eveLoss
 
 def generateData(plaintext_len=4):
-    return np.random.randint(0, 2, size=int(plaintext_len))
+    return np.float32(np.random.randint(0, 2, size=int(plaintext_len)))
 
 class Trio():
     def __init__(self, in_length, conv_params):
@@ -105,10 +105,10 @@ class Trio():
         plaintext = tf.placeholder('float', [self.plaintext_len])
         key = tf.placeholder('float', [self.plaintext_len])
         
-        tensor_in = tf.concat(0, [plaintext, key])
+        tensor_in = tf.concat(axis=0, values=[plaintext, key])
         
         alice_output = self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))
-        bob_output = self.nets[1].conv_layer(self.nets[1].fc_layer(tf.concat(0, [alice_output, key])))
+        bob_output = self.nets[1].conv_layer(self.nets[1].fc_layer(tf.concat(axis=0, values=[alice_output, key])))
         eve_output = self.nets[2].conv_layer(self.nets[2].fc_layer(alice_output))
         
         loss_bob = self.nets[1].loss_func('bob', plaintext, eve_output, bob_output)
@@ -141,9 +141,9 @@ class Trio():
             # First, run alice and bob           
             _, bobLossArr[i] = sess.run([abOpt, bitErrors_bob], feed_dict={plaintext:msg_training, key:key_training})
             # Then, run eve twice
-            msg_training = generateData(plaintext_len=self.plaintext_len)
-            key_training = generateData(plaintext_len=self.plaintext_len)
-            _, _ = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
+            #msg_training = generateData(plaintext_len=self.plaintext_len)
+            #key_training = generateData(plaintext_len=self.plaintext_len)
+            #_, _ = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
             
             msg_training = generateData(plaintext_len=self.plaintext_len)
             key_training = generateData(plaintext_len=self.plaintext_len)
@@ -157,6 +157,15 @@ class Trio():
                 print("eve average loss: " + str(np.mean(eveLossArr[(i-1000):i])))
                 print("bob loss this iteration: " + str(bobLossArr[i]))
                 print("eve loss this iteration: " + str(eveLossArr[i]))
+                print("test")
+                keyTest = generateData(plaintext_len=self.plaintext_len)
+                #print(str(self.myEnc.encode("test")))
+                print(self.encryptPlaintext(sess=sess, plaintext="test", key=keyTest, output_bits_or_chars='chars'))
+                #print(str(self.encryptPlaintext(sess=sess, plaintext="test", key=keyTest, output_bits_or_chars='bits')[0]))
+                print(self.decryptBob(sess=sess, ciphertext=self.encryptPlaintext(sess=sess, plaintext="test", key=keyTest, output_bits_or_chars='chars'), 
+                                      key=keyTest, output_bits_or_chars='chars'))
+                #print(str(self.decryptBob(sess=sess, ciphertext=self.encryptPlaintext(sess=sess, plaintext="test", key=keyTest, output_bits_or_chars='chars'), 
+                #                      key=keyTest, output_bits_or_chars='bits')[0]))
                 
         return bobMeansVect, eveMeansVect
     
@@ -185,7 +194,7 @@ class Trio():
             
         for i in range(0, len(plaintextBin), self.plaintext_len):
             # Concatenate the message with the key
-            tensor_in = tf.concat(0, [plaintextBin[i:(i+self.plaintext_len)], key])
+            tensor_in = tf.concat(axis=0, values=[plaintextBin[i:(i+self.plaintext_len)], key])
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))])[0]
             # Compress it back to a sequence of characters, decode them, and append to the result
@@ -216,7 +225,7 @@ class Trio():
 
         for i in range(0, len(ciphertextBin), self.plaintext_len):
             # Concatenate the ciphertext with the key
-            tensor_in = tf.concat(0, [ciphertextBin[i:(i+self.plaintext_len)], key])
+            tensor_in = tf.concat(axis=0, values=[ciphertextBin[i:(i+self.plaintext_len)], key])
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[1].conv_layer(self.nets[1].fc_layer(tensor_in))])[0]
             # Compress it back to a sequence of characters, decode them, and append to the result
@@ -247,7 +256,7 @@ class Trio():
             
         for i in range(0, len(ciphertextBin), self.plaintext_len):
             # Concatenate the ciphertext with the key
-            tensor_in = tf.concat(0, [ciphertextBin[i:(i+self.plaintext_len)]])
+            tensor_in = tf.concat(axis=0, values=[ciphertextBin[i:(i+self.plaintext_len)]])
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[2].conv_layer(self.nets[2].fc_layer(tensor_in))])[0]
             # Compress it back to a sequence of characters, decode them, and append to the result
