@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from encoder import Encoder
+import matplotlib.pyplot as plt
 
 class Net:
     def __init__(self, name, in_length, conv_params, seed=100):
@@ -157,16 +158,38 @@ class Trio():
             if i % report_rate == 0 and i > 0:
                 bobMeansVect[i//report_rate] = np.mean(bobLossTemp)
                 eveMeansVect[i//report_rate] = np.mean(eveLossTemp)
+                plt.plot(bobLossTemp)
+                plt.show()
                 print("i: " + str(i) + "/" + str(epochs) + " (" + str(i/epochs*100) + "%)")
-                testVect = "test"
-                print(testVect)
-                print("["+str([int(c) for c in self.myEnc.encode(testVect)])+"]")
-                testKey = generateData(plaintext_len=self.plaintext_len, batch_size=1)
-                print(self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'))
-                print(self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='bits'))
-                print(self.decryptBob(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), testKey, output_bits_or_chars='chars'))
-                print(self.decryptBob(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), testKey, output_bits_or_chars='bits'))
+                #testVect = "test"
+                #print(testVect)
+                #print("["+str([int(c) for c in self.myEnc.encode(testVect)])+"]")
+                #testKey = generateData(plaintext_len=self.plaintext_len, batch_size=1)
+                #print(self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'))
+                #print(self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='bits'))
+                #print(self.decryptBob(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), testKey, output_bits_or_chars='chars'))
+                #print(self.decryptBob(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), testKey, output_bits_or_chars='bits'))
                 #print(self.decryptEve(sess, self.encryptPlaintext(sess, testVect, testKey, output_bits_or_chars='chars'), output_bits_or_chars='chars'))
+                
+                testMsgs = generateData(plaintext_len=self.plaintext_len, batch_size=1)
+                testKeys = generateData(plaintext_len=self.plaintext_len, batch_size=1)
+                
+                print("test messages: \n" + str([int(round(abs(x))) for x in testMsgs[0]]))# + "\n" + str([int(round(abs(x))) for x in testMsgs[1]]))
+                
+                concatTest = tf.concat(axis=1, values=[testMsgs, testKeys])
+                #print("concatTest shape: " + str(concatTest.get_shape()))
+                
+                encMsgs = sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(concatTest))])[0]
+                #print("encMsgs shape: " + str(encMsgs.shape))
+                print("encrypted messages: \n" + str([int(round(abs(x))) for x in encMsgs]))# + "\n" + str([int(round(abs(x))) for x in encMsgs[1]]))
+                
+                concatTest2 = tf.concat(axis=1, values=[np.reshape(encMsgs, [1, 20]), testKeys])
+                #print("concatTest2 shape: " + str(concatTest2.get_shape()))
+                
+                decMsgs = sess.run([self.nets[1].conv_layer(self.nets[1].fc_layer(concatTest2))])[0]
+                #print("decMsgs shape: " + str(decMsgs.shape))
+                print("decrypted messages: \n" + str([int(round(abs(x))) for x in decMsgs]))# + "\n" + str([int(round(abs(x))) for x in decMsgs[1]]))
+                
                 print("bob average loss: " + str(bobMeansVect[i//report_rate]))
                 print("eve average loss: " + str(eveMeansVect[i//report_rate]))
                 

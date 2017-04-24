@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 
 def main():
+    tf.reset_default_graph()
     in_length = 40  # mesage of length 20, so expect output of length 20
     conv_params = [
         [[4, 1, 2], 1], 
