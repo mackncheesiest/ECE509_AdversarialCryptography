@@ -193,8 +193,8 @@ class Trio():
             tensor_in = tf.concat(axis=1, values=[tensor_in, key])
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))])[0]
-            # Compress it back to a sequence of characters, decode them, and append to the result
-            result.append(tf_result)
+            # Append to the result
+            result = np.float32(np.concatenate((result, tf_result), axis=0))
             
         return result
     
