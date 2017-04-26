@@ -152,7 +152,7 @@ class Trio():
                 testVect = "test"
                 print(testVect)
                 testKey = generateData(plaintext_len=self.plaintext_len, batch_size=1)            
-                testVectEncrypted = self.encryptPlaintext(sess, testVect, testKey)[0]
+                testVectEncrypted = self.encryptPlaintext(sess, testVect, testKey)
                 print("enc('test'): " + str(testVectEncrypted))
                 
                 testVectDecrypted = self.decryptBob(sess, testVectEncrypted, testKey, output_bits_or_chars='chars')
@@ -195,8 +195,8 @@ class Trio():
             tf_result = sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))])[0]
             # Append to the result
             result = np.float32(np.concatenate((result, tf_result), axis=0))
-            
-        return result
+        
+        return np.array(result)
     
     def decryptBob(self, sess, ciphertext, key, output_bits_or_chars='chars'):
         
