@@ -17,7 +17,7 @@ def main():
     
     myTrio = Trio(in_length, conv_params)
     
-    [bobAvgErrVect, eveAvgErrVect] = myTrio.train(sess, epochs=100000, learning_rate=0.0008, batch_size=4096, report_rate=100)
+    [bobAvgErrVect, eveAvgErrVect] = myTrio.train(sess, epochs=30000, learning_rate=0.0008, batch_size=4096, report_rate=1000)
 
     saver = tf.train.Saver()
     saver.save(sess, "./modelcheckpoints/modelchkpt.chk")
@@ -28,18 +28,6 @@ def main():
     plt.plot(eveAvgErrVect)
     plt.title('Average Bit Error Across 1000 iterations/epoch for Eve')
     plt.show()
-
-    plaintext = 'hello my name is josh.aa'
-
-    #Pick a key
-    key = generateData(plaintext_len=in_length//2, batch_size=1)
-    #key = [float(i) for i in key[0, :]]
-    
-    print(plaintext)
-    encryptedData = myTrio.encryptPlaintext(sess, plaintext, key, output_bits_or_chars='chars')
-    print(encryptedData)
-    decryptedData = myTrio.decryptBob(sess, encryptedData, key, output_bits_or_chars='chars')
-    print(decryptedData)
     
     return sess, myTrio, saver
 
