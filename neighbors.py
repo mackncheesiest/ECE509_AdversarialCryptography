@@ -22,7 +22,7 @@ def neighbors(in_string):
     return neighbor_list
 
 
-def l1_distances(s, key):
+def l1_distances(sess, trio, s, key):
     # s is a string
     # currently works with four-letter words (heh) because we haven't
     # implemented a padding procedure
@@ -31,7 +31,7 @@ def l1_distances(s, key):
     # the number of bits where the encoding of the ciphertext of the
     # neighbor differs from the encoding of the ciphertext of s.
 
-    c0 = trio.encryptPlaintext(sess, s, key)[0]
+    c0 = trio.encryptPlaintext(sess, s, key)
     distances = []
     for neighbor in neighbors(s):
         c = trio.encryptPlaintext(sess, neighbor, key)
@@ -42,4 +42,4 @@ def l1_distances(s, key):
 
 
 key = generateData(20,1) #  NB: a new key with each run
-D = l1_distances('test',key)
+D = l1_distances(sess, trio, 'test',key)
