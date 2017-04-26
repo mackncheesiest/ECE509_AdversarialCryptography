@@ -4,7 +4,7 @@ from encoder import Encoder
 import matplotlib.pyplot as plt
 
 class Net:
-    def __init__(self, name, in_length, conv_params, seed=None):
+    def __init__(self, name, in_length, conv_params, seed=1000):
         self.name = name  # a string
         self.conv_params = conv_params  # format: [filter_shape, stride]
         self.in_length = in_length
@@ -63,13 +63,6 @@ class Net:
         )  # if problems later, maybe I should have used placeholders?
 
         out_tensor = tf.squeeze(out_tensor)
-        
-        # now round to 0's and 1's
-        # warning: was getting -0.'s instead of 0's. prob ok but...
-        
-        # Note: Can't use ceil during training, actually, because it doesn't have a defined gradient so SGD breaks
-        #out_tensor = tf.ceil(out_tensor)
-
         return out_tensor
     
     def loss_func(self, name, plaintext, eve_output, bob_output):
@@ -77,7 +70,6 @@ class Net:
         
         # This should be the L1-Loss of the original plaintext and what Eve decrypted
         eveLoss_L1 = tf.reduce_sum(tf.abs(plaintext - eve_output), reduction_indices=1)
-        #eveLoss_L1 = tf.reduce_mean(tf.abs(plaintext - eve_output))
         
         # Then, perform the modification Abadi & Andersen describe in section 2.5 of (N/2 - Eve_L1)^2 / (N/2)^2
         # This should cause the network to drive Eve towards a 50% bit error rate
@@ -114,8 +106,6 @@ class Trio():
         loss_bob = self.nets[1].loss_func('bob', plaintext, eve_output, bob_output)
         loss_eve = self.nets[2].loss_func('eve', plaintext, eve_output, bob_output)
         
-        #bitErrors_bob = tf.reduce_sum(tf.abs(tf.round(bob_output) - tf.round(plaintext)))
-        #bitErrors_eve = tf.reduce_sum(tf.abs(tf.round(eve_output) - tf.round(plaintext)))
         bitErrors_bob = tf.reduce_sum(tf.abs((bob_output) - (plaintext)), reduction_indices=1)
         bitErrors_eve = tf.reduce_sum(tf.abs((eve_output) - (plaintext)), reduction_indices=1)
         
@@ -148,9 +138,6 @@ class Trio():
             key_training = generateData(plaintext_len=self.plaintext_len, batch_size=batch_size)
             _, eveLossTemp = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
             
-            #print(str(bobLossTemp.shape))
-            #print(str(eveLossTemp.shape))
-            
             #msg_training = generateData(plaintext_len=self.plaintext_len, batch_size=batch_size)
             #key_training = generateData(plaintext_len=self.plaintext_len, batch_size=batch_size)
             #_, eveLossTemp = sess.run([eOpt, bitErrors_eve], feed_dict={plaintext:msg_training, key:key_training})
@@ -161,43 +148,18 @@ class Trio():
                 plt.plot(bobLossTemp)
                 plt.show()
                 print("i: " + str(i) + "/" + str(epochs) + " (" + str(i/epochs*100) + "%)")
-                
-                """
-                testMsgs = generateData(plaintext_len=self.plaintext_len, batch_size=1)
-                testKeys = generateData(plaintext_len=self.plaintext_len, batch_size=1)
-                
-                print("test messages: \n" + str([int(round(abs(x))) for x in testMsgs[0]]))# + "\n" + str([int(round(abs(x))) for x in testMsgs[1]]))
-                concatTest = tf.concat(axis=1, values=[testMsgs, testKeys])
-                #print("concatTest shape: " + str(concatTest.get_shape()))
-                
-                encMsgs = sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(concatTest))])[0]
-                #print("encMsgs shape: " + str(encMsgs.shape))
-                print("encrypted messages: \n" + str([int(round(abs(x))) for x in encMsgs]))# + "\n" + str([int(round(abs(x))) for x in encMsgs[1]]))
-                
-                concatTest2 = tf.concat(axis=1, values=[np.reshape(encMsgs, [1, 20]), testKeys])
-                #print("concatTest2 shape: " + str(concatTest2.get_shape()))
-                
-                decMsgs = sess.run([self.nets[1].conv_layer(self.nets[1].fc_layer(concatTest2))])[0]
-                #print("decMsgs shape: " + str(decMsgs.shape))
-                print("decrypted messages: \n" + str([int(round(abs(x))) for x in decMsgs]))# + "\n" + str([int(round(abs(x))) for x in decMsgs[1]]))
-                """
-                ###############################################################
             
                 testVect = "test"
                 print(testVect)
-                testVectEncoded = np.reshape([np.float32(c) for c in self.myEnc.encode(testVect)], [1, 20])
-                testKey = generateData(plaintext_len=self.plaintext_len, batch_size=1)
+                testKey = generateData(plaintext_len=self.plaintext_len, batch_size=1)            
+                testVectEncrypted = self.encryptPlaintext(sess, testVect, testKey)[0]
+                print("enc('test'): " + str(testVectEncrypted))
                 
-                testVectConcat = tf.concat(axis=1, values=[testVectEncoded, testKey])
-            
-                testVectEncrypted = sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(testVectConcat))])[0]
-                print("enc('test'): " + self.myEnc.decode(''.join([str(int(round(abs(x)))) for x in testVectEncrypted])))
+                testVectDecrypted = self.decryptBob(sess, testVectEncrypted, testKey, output_bits_or_chars='chars')
+                print("dec_bob(enc('test')): " + str(testVectDecrypted))
                 
-                testVectConcat2 = tf.concat(axis=1, values=[np.reshape(testVectEncrypted, [1, 20]), testKey])
-                
-                testVectDecrypted = sess.run([self.nets[1].conv_layer(self.nets[1].fc_layer(testVectConcat2))])[0]
-                print("dec(enc('test')): " + self.myEnc.decode(''.join([str(int(round(abs(x)))) for x in testVectDecrypted])))
-                
+                testVectDecryptedEve = self.decryptEve(sess, testVectEncrypted, output_bits_or_chars='chars')
+                print("dec_eve(enc('test')): " + str(testVectDecryptedEve))
             
                 print("bob average loss: " + str(bobMeansVect[i//report_rate]))
                 print("eve average loss: " + str(eveMeansVect[i//report_rate]))
@@ -207,7 +169,7 @@ class Trio():
     # Note that plaintext is a legitimate "plaintext" i.e. 'hello'
     # Key is a binary list generated with something like generateData
     # And sess is the tensorflow session used to train the model or something
-    def encryptPlaintext(self, sess, plaintext, key, output_bits_or_chars='chars'):
+    def encryptPlaintext(self, sess, plaintext, key):
         
         # Check that we'll be able to encrypt without padding or anything (because I don't know how to remove the padding in decoding...what is padding and what isn't?)
         if 5*len(plaintext) % self.plaintext_len != 0:
@@ -222,10 +184,7 @@ class Trio():
         plaintextBin = [np.float32(c) for c in plaintextBin]
             
         # Now, iterate over all of the blocks and encrypt them
-        if output_bits_or_chars == 'chars':
-            result = ''
-        else:
-            result = []
+        result = []
             
         for i in range(0, len(plaintextBin), self.plaintext_len):
             # Concatenate the message with the key
@@ -235,24 +194,18 @@ class Trio():
             # Get the resulting bit vector
             tf_result = sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))])[0]
             # Compress it back to a sequence of characters, decode them, and append to the result
-            if output_bits_or_chars == 'chars':
-                result += self.myEnc.decode("".join(str(int(round(abs(x)))) for x in tf_result))
-            else:
-                result.append([int(round(abs(x))) for x in tf_result])
+            result.append(tf_result)
             
         return result
     
     def decryptBob(self, sess, ciphertext, key, output_bits_or_chars='chars'):
         
         # Check that we'll be able to encrypt without padding or anything (because I don't know how to remove the padding in decoding...what is padding and what isn't?)
-        if 5*len(ciphertext) % self.plaintext_len != 0:
+        if len(ciphertext) % self.plaintext_len != 0:
             print("Cannot decrypt\nPlease either pad your plaintext to be a multiple of network block size\nOr train a network with a different block size")
             return ciphertext
         
-        # Turn the ciphertext string into a list of floating point bits that can be used as a tensor
-        # Same process as encryptPlaintext
-        ciphertextBin = self.myEnc.encode(ciphertext)
-        ciphertextBin = [np.float32(c) for c in ciphertextBin]
+        # The input to decryptBob and decryptEve are already floating-point bit vectors
         
         # Now, iterate over all the blocks and decrypt them
         if output_bits_or_chars == 'chars':
@@ -260,9 +213,9 @@ class Trio():
         else:
             result = []
 
-        for i in range(0, len(ciphertextBin), self.plaintext_len):
+        for i in range(0, len(ciphertext), self.plaintext_len):
             # Concatenate the ciphertext with the key
-            tensor_in = np.reshape(np.array(ciphertextBin[i:(i+self.plaintext_len)]), [1, self.plaintext_len])
+            tensor_in = np.reshape(np.array(ciphertext[i:(i+self.plaintext_len)]), [1, self.plaintext_len])
             #tensor_in = tf.concat(axis=0, [tf.constant(1., shape=[1]), ciphertextBin[i:(i+self.plaintext_len)]])
             tensor_in = tf.concat(axis=1, values=[tensor_in, key])
             # Get the resulting bit vector
@@ -278,14 +231,11 @@ class Trio():
     def decryptEve(self, sess, ciphertext, output_bits_or_chars='chars'):
         
         # Check that we'll be able to encrypt without padding or anything (because I don't know how to remove the padding in decoding...what is padding and what isn't?)
-        if 5*len(ciphertext) % self.plaintext_len != 0:
+        if len(ciphertext) % self.plaintext_len != 0:
             print("Please either pad your plaintext to be a multiple of network block size\nOr train a network with a different block size")
             return ciphertext
         
-        # Turn the ciphertext string into a list of floating point bits that can be used as a tensor
-        # Same process as encryptPlaintext
-        ciphertextBin = self.myEnc.encode(ciphertext)
-        ciphertextBin = [np.float32(c) for c in ciphertextBin]
+        # The input to decryptBob and decryptEve are already floating-point bit vectors
         
         # Now, iterate over all the blocks and decrypt them
         if output_bits_or_chars == 'chars':
@@ -293,9 +243,9 @@ class Trio():
         else:
             result = []
             
-        for i in range(0, len(ciphertextBin), self.plaintext_len):
+        for i in range(0, len(ciphertext), self.plaintext_len):
             # Concatenate the ciphertext with the key
-            tensor_in = np.reshape(np.array(ciphertextBin[i:(i+self.plaintext_len)]), [1, self.plaintext_len])
+            tensor_in = np.reshape(np.array(ciphertext[i:(i+self.plaintext_len)]), [1, self.plaintext_len])
             #tensor_in = tf.concat(axis=0, values=[tf.constant(1), ciphertextBin[i:(i+self.plaintext_len)]])
             #tensor_in = tf.concat(axis=1, values=[ciphertextBin[i:(i+self.plaintext_len)]])
             # Get the resulting bit vector
@@ -304,6 +254,6 @@ class Trio():
             if output_bits_or_chars == 'chars':
                 result += self.myEnc.decode("".join(str(int(round(abs(x)))) for x in tf_result))
             else:
-                result.append(tf_result)
+                result.append([int(round(abs(x))) for x in tf_result])
         
         return result

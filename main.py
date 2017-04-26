@@ -17,10 +17,9 @@ def main():
     
     myTrio = Trio(in_length, conv_params)
     
-    saver = tf.train.Saver()
-    
     [bobAvgErrVect, eveAvgErrVect] = myTrio.train(sess, epochs=100000, learning_rate=0.0008, batch_size=4096, report_rate=100)
 
+    saver = tf.train.Saver()
     saver.save(sess, "./modelcheckpoints/modelchkpt.chk")
 
     plt.plot(bobAvgErrVect)
