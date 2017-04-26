@@ -1,6 +1,7 @@
 from encoder import Encoder
 from nets import generateData
 from loader import trained_trio
+import numpy as np
 
 encoder = Encoder()
 
@@ -21,38 +22,25 @@ def neighbors(in_string):
     return neighbor_list
 
 
-def distances(s):
+def l1_distances(s, key):
     # s is a string
     # currently works with four-letter words (heh) because we haven't
     # implemented a padding procedure
-    
 
     # returns a list of integers, one for each neighbor. the integer is
     # the number of bits where the encoding of the ciphertext of the
     # neighbor differs from the encoding of the ciphertext of s.
 
-    k = generateData(len(s)*5, 1)
-
-    c0 = encoder.encode(trio.encryptPlaintext(sess, s, k))
-
+    c0 = trio.encryptPlaintext(sess, s, key)[0]
     distances = []
     for neighbor in neighbors(s):
-        ciphertext = trio.encryptPlaintext(sess, neighbor, k)
-        c = encoder.encode(ciphertext)
-        distance = sum([b != b0 for b, b0 in zip(c, c0)])
-        # snazzy; found online
-
+        c = trio.encryptPlaintext(sess, neighbor, key)[0]
+        distance = sum(np.abs(c - c0))
         distances += [distance]
-
-        # # to test, uncomment this and distances('test') below
-        # # NOTE: I get distance 0 in ciphertext space for some neighbors.
-        # # could fix if trio.decryptBob gave floats. is it worth it?
-        # print(c)
-        # print(c0)
-        # print('supposed distance = ',distance)
-        # print('neighbor is ',neighbor)
-        # print()
 
     return distances
 
-# distances('test')
+
+key = [ 0., 0., 1., 0., 0., 1., 1., 1., 0., 1.,
+        1., 0., 1., 0., 0., 1., 1., 0., 1., 0.]
+D = l1_distances('test', key)
