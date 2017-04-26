@@ -34,7 +34,7 @@ def l1_distances(s, key):
     c0 = trio.encryptPlaintext(sess, s, key)[0]
     distances = []
     for neighbor in neighbors(s):
-        c = trio.encryptPlaintext(sess, neighbor, key)[0]
+        c = trio.encryptPlaintext(sess, neighbor, key)
         distance = sum(np.abs(c - c0))
         distances += [distance]
 

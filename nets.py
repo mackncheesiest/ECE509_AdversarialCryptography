@@ -198,6 +198,14 @@ class Trio():
         
         return np.array(result)
     
+    # Assuming that all elements of these batches already come in as floating point bit arrays
+    def encryptBatch(self, sess, batch, keys):
+        #Since everything is already assumed to be setup (i.e. data is already a 2D matrix rows of self.plaintext_len bitvectors),
+        #We just need to concatenate things and then run the session
+        tensor_in = tf.concat(axis=1, values=[np.float32(batch), np.float32(keys)])
+        return sess.run([self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))])[0]
+    
+        
     def decryptBob(self, sess, ciphertext, key, output_bits_or_chars='chars'):
         
         # Check that we'll be able to encrypt without padding or anything (because I don't know how to remove the padding in decoding...what is padding and what isn't?)
