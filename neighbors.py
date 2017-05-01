@@ -86,9 +86,10 @@ def batch_extreme_l1_distances(B, key, log_loc):
     # key is an array, e.g., generateData(20,1)
 
     # generate and encrypt neighbors
-    nearest_ns = batch_neighbors(B)
+    nearest_ns = batch_neighbors(B) 
     keys = np.concatenate([key for i in range(len(nearest_ns))], axis=0)
     encrypted_ns = trio.encryptBatch(sess, nearest_ns, keys)
+    print("length of encrypted_ns is",len(encrypted_ns))
 
     # encrypt the strings in B
     C = [np.array(list(b), dtype='float32') for b in B]
@@ -105,21 +106,25 @@ def batch_extreme_l1_distances(B, key, log_loc):
             distances += [distance]
         min_distances += [min(distances)]
         max_distances += [max(distances)]
-        encrypted_bs = encrypted_bs[20:]
+        encrypted_ns = encrypted_ns[20:]
+        print("length of encrypted_ns is now",len(encrypted_ns))
 
     with open(log_loc, 'a') as log_file:
         for pair in list(zip(min_distances, max_distances)):
             log_file.write(str(pair) + '\n')
 
 
-# key is [0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1]
 
 def get_all_distances(key):
-    B = [bin(i)[2:].zfill(20) for i in range(2**19, 2**20)]
+    B = [bin(i)[2:].zfill(20) for i in range(2**10)]
     counter = 0
     while B != []:
         batch_extreme_l1_distances(B[:2**10], key,
-                                   '/home/cody/crunch_cody/extrema')
+                                   'kill-these-extrema')
         B = B[2**10:]
         counter += 1
         print('finished batch ',counter)
+
+
+# the key I used to make the big file is
+# [0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1]
