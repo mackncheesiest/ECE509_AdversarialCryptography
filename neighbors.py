@@ -80,7 +80,8 @@ def batch_min_l1_distances(B, key):
 
     return min_distances
 
-def batch_extreme_l1_distances(B, key):
+
+def batch_extreme_l1_distances(B, key, log_loc):
     # B is a list of binary strings
     # key is an array, e.g., generateData(20,1)
 
@@ -102,8 +103,23 @@ def batch_extreme_l1_distances(B, key):
         for c in encrypted_ns[:20]:
             distance = sum(np.abs(c - c0))
             distances += [distance]
-            min_distances += [min(distances)]
-            max_distances += [max(distances)]
+        min_distances += [min(distances)]
+        max_distances += [max(distances)]
         encrypted_bs = encrypted_bs[20:]
 
-    return list(zip(min_distances, max_distances))
+    with open(log_loc, 'a') as log_file:
+        for pair in list(zip(min_distances, max_distances)):
+            log_file.write(str(pair) + '\n')
+
+
+# key is [0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1]
+
+def get_all_distances(key):
+    B = [bin(i)[2:].zfill(20) for i in range(2**19, 2**20)]
+    counter = 0
+    while B != []:
+        batch_extreme_l1_distances(B[:2**10], key,
+                                   '/home/cody/crunch_cody/extrema')
+        B = B[2**10:]
+        counter += 1
+        print('finished batch ',counter)
