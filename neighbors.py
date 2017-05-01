@@ -48,19 +48,20 @@ def batch_neighbors(B):
     all_ns = np.array([])
     L = []
     for b in B:
-        L += [np.array(list(n), dtype='float32') for n in neighbors(b)]
+        #print(''.join([str(int(x)) for x in b]))
+        #print(str(''.join(b)))
+        L += [np.array(list(n), dtype='float32') for n in neighbors(''.join([str(int(x)) for x in b]))]
     all_ns = np.concatenate([[l] for l in L], axis=0)
     return all_ns
 
 
-def batch_min_l1_distances(B, key):
+def batch_min_l1_distances(sess, trio, B, key):
     # B is a list of binary strings
     # key is an array, e.g., generateData(20,1)
 
     # generate and encrypt neighbors
     nearest_ns = batch_neighbors(B)
     keys = np.concatenate([key for i in range(len(nearest_ns))], axis=0)
-    # 
     encrypted_ns = trio.encryptBatch(sess, nearest_ns, keys)
 
     # encrypt the strings in B
@@ -75,13 +76,13 @@ def batch_min_l1_distances(B, key):
         for c in encrypted_ns[:20]:
             distance = sum(np.abs(c - c0))
             distances += [distance]
-            min_distances += [min(distances)]
-        encrypted_bs = encrypted_bs[20:]
+        min_distances += [min(distances)]
+        #This originally was bs, but I think it should be ns if we're adjusting the nearest-neighbor vector
+        encrypted_ns = encrypted_ns[20:]
 
     return min_distances
 
-
-def batch_extreme_l1_distances(B, key, log_loc):
+def batch_extreme_l1_distances(sess, trio, B, key, log_loc):
     # B is a list of binary strings
     # key is an array, e.g., generateData(20,1)
 
