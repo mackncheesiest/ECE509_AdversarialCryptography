@@ -133,25 +133,25 @@ def get_all_distances(key):
 # key = np.array([k], dtype='float32')
 # get_all_distances(key)
 
-extrema_file = open('extrema', 'r')
-extrema  = extrema_file.readlines()[2:]
-extrema = [ast.literal_eval(s[:-1]) for s in extrema]  # a little slow
-mins  = [e[0] for e in extrema]
-maxes = [e[1] for e in extrema]
-diffs = [e[1]-e[0] for e in extrema]
+def produce_figures():
+    extrema_file = open('extrema', 'r')
+    extrema  = extrema_file.readlines()[2:]
+    extrema = [ast.literal_eval(s[:-1]) for s in extrema]  # a little slow
+    mins  = [e[0] for e in extrema]
+    maxes = [e[1] for e in extrema]
+    diffs = [e[1]-e[0] for e in extrema]
 
-plt.hist(mins, bins='auto')
-plt.title("Max distance to a nearest neighbor")
-plt.savefig('mins.png')
-plt.clf()
+    plt.hist(mins, bins='auto')
+    plt.title("Max distance to a nearest neighbor")
+    plt.savefig('mins.png')
+    plt.clf()
 
-plt.hist(maxes, bins='auto')
-plt.title("Min distance to a nearest neighbor")
-plt.savefig('maxes.png')
-plt.clf()
+    plt.hist(maxes, bins='auto')
+    plt.title("Min distance to a nearest neighbor")
+    plt.savefig('maxes.png')
+    plt.clf()
 
-plt.hist(diffs, bins='auto')
-plt.title("Difference of max and min distances to a nearest neighbor")
-plt.savefig('diffs.png')
-
-plt.clf()
+    plt.hist(diffs, bins='auto')
+    plt.title("Difference of max and min distances to a nearest neighbor")
+    plt.savefig('diffs.png')
+    plt.clf()
