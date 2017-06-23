@@ -82,8 +82,10 @@ class Net:
         else:
             return eveLoss
 
+
 def generateData(plaintext_len=4, batch_size=512):
     return np.float32(np.random.randint(0, 2, size=[batch_size, int(plaintext_len)]))
+
 
 class Trio():
     def __init__(self, in_length, conv_params):
@@ -101,6 +103,7 @@ class Trio():
         
         alice_output = self.nets[0].conv_layer(self.nets[0].fc_layer(tensor_in))
         bob_output = self.nets[1].conv_layer(self.nets[1].fc_layer(tf.concat(axis=1, values=[alice_output, key])))
+
         eve_output = self.nets[2].conv_layer(self.nets[2].fc_layer(alice_output))
         
         loss_bob = self.nets[1].loss_func('bob', plaintext, eve_output, bob_output)
